@@ -24,6 +24,10 @@
   Access Gemini's power without API keys — just use your cookies!
 </p>
 
+<p align="center">
+  <b>Created with ❤️ by <a href="https://github.com/ntthanh2603">@ntthanh2603</a></b>
+</p>
+
 > [!NOTE]
 > This project is intended for **research and educational purposes only**. Please use responsibly and refrain from any commercial use.
 
@@ -326,6 +330,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
+## 👤 Author
+
+- **Nguyễn Tuấn Thành** ([@ntthanh2603](https://github.com/ntthanh2603))
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
@@ -346,4 +356,4 @@ If you find this project useful, please consider giving it a star! ⭐
 
 ---
 
-**Made with ❤️ by the Gemini Web To API team**
+**Created with ❤️ by [@ntthanh2603](https://github.com/ntthanh2603)**
