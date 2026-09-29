@@ -76,7 +76,7 @@ func ValidateGenerationRequest(model string, maxTokens int, temperature float32)
 func MarshalJSONSafely(log *zap.Logger, v interface{}) []byte {
 	data, err := json.Marshal(v)
 	if err != nil {
-		log.Error("Failed to marshal JSON", zap.Error(err), zap.Any("value", v))
+		log.Error("Failed to marshal JSON", zap.Error(err))
 		return []byte("{}")
 	}
 	return data

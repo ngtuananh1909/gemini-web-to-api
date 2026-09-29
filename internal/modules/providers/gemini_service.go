@@ -620,12 +620,10 @@ func (c *Client) generateContent(ctx context.Context, prompt string, metadata []
 			continue
 		}
 		if httpResp.StatusCode != http.StatusOK {
-			bodySnippet, _ := io.ReadAll(io.LimitReader(httpResp.Body, 512))
 			_ = httpResp.Body.Close()
 			lastErr = fmt.Errorf("generate failed with status: %d", httpResp.StatusCode)
 			c.log.Warn("Generate returned non-200",
 				zap.Int("status", httpResp.StatusCode),
-				zap.String("body_snippet", string(bodySnippet)),
 				zap.Int("attempt", attempt),
 			)
 			if httpResp.StatusCode >= 500 {

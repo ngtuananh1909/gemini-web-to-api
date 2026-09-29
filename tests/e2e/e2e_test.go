@@ -27,6 +27,17 @@ type modelList struct {
 }
 
 const liveRequestPause = 2 * time.Second
+const testGatewayKey = "e2e-gateway-test-key"
+
+type gatewayAuthTransport struct {
+	base http.RoundTripper
+}
+
+func (transport gatewayAuthTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	authorized := request.Clone(request.Context())
+	authorized.Header.Set("Authorization", "Bearer "+testGatewayKey)
+	return transport.base.RoundTrip(authorized)
+}
 
 func TestLiveAPIContracts(t *testing.T) {
 	if os.Getenv("E2E") != "1" {
@@ -43,7 +54,7 @@ func TestLiveAPIContracts(t *testing.T) {
 	// The provider itself permits a Gemini Web request to take up to five
 	// minutes. Keep the harness timeout slightly longer so it observes the
 	// server's result instead of abandoning an in-flight upstream request.
-	client := &http.Client{Timeout: 6 * time.Minute}
+	client := &http.Client{Timeout: 6 * time.Minute, Transport: gatewayAuthTransport{base: http.DefaultTransport}}
 	models := waitForModels(t, client, baseURL)
 	if len(models) == 0 {
 		t.Fatal("model registry is empty")
@@ -221,7 +232,7 @@ func startServer(t *testing.T, root string) (string, func()) {
 	}
 	cmd := exec.Command(exe)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port), "RATE_LIMIT_ENABLED=false")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port), "RATE_LIMIT_ENABLED=false", "API_AUTH_ENABLED=true", "API_KEY="+testGatewayKey, "GATEWAY_DATA_DIR="+t.TempDir())
 	cmd.Stdout, cmd.Stderr = logFile, logFile
 	if err := cmd.Start(); err != nil {
 		_ = logFile.Close()

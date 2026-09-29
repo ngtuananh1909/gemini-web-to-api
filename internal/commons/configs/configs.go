@@ -2,6 +2,7 @@ package configs
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -14,8 +15,21 @@ type Config struct {
 	Claude    ClaudeConfig
 	OpenAI    OpenAIConfig
 	Server    ServerConfig
+	Auth      AuthConfig
+	Dashboard DashboardConfig
 	RateLimit RateLimitConfig
 	LogLevel  string
+}
+
+type AuthConfig struct {
+	Enabled bool
+	APIKey  string
+	DataDir string
+}
+
+type DashboardConfig struct {
+	Enabled             bool
+	LocalPortGuaranteed bool
 }
 
 type RateLimitConfig struct {
@@ -47,6 +61,7 @@ type OpenAIConfig struct {
 }
 
 type ServerConfig struct {
+	Host string
 	Port string
 }
 
@@ -64,7 +79,19 @@ func New() (*Config, error) {
 	var cfg Config
 
 	// Server
+	cfg.Server.Host = strings.TrimSpace(getEnv("HOST", "127.0.0.1"))
+	if cfg.Server.Host == "" {
+		cfg.Server.Host = "127.0.0.1"
+	}
 	cfg.Server.Port = getEnv("PORT", defaultServerPort)
+	cfg.Auth.Enabled = getEnvBool("API_AUTH_ENABLED", true)
+	cfg.Auth.APIKey = strings.TrimSpace(os.Getenv("API_KEY"))
+	cfg.Auth.DataDir = strings.TrimSpace(getEnv("GATEWAY_DATA_DIR", ".gateway"))
+	if cfg.Auth.DataDir == "" {
+		cfg.Auth.DataDir = ".gateway"
+	}
+	cfg.Dashboard.Enabled = getEnvBool("DASHBOARD_ENABLED", loopbackHost(cfg.Server.Host))
+	cfg.Dashboard.LocalPortGuaranteed = getEnvBool("DASHBOARD_LOCAL_PORT", false)
 
 	// General
 	cfg.LogLevel = getEnv("LOG_LEVEL", defaultLogLevel)
@@ -109,6 +136,9 @@ func cookieValue(header, wanted string) string {
 // Validate checks if the configuration has required values
 func (c *Config) Validate() error {
 	var missingVars []string
+	if c.Dashboard.Enabled && !loopbackHost(c.Server.Host) && !c.Dashboard.LocalPortGuaranteed {
+		return fmt.Errorf("dashboard requires a loopback HOST or DASHBOARD_LOCAL_PORT=true with a verified loopback-only host port mapping")
+	}
 
 	if strings.TrimSpace(c.Gemini.Cookies) == "" {
 		missingVars = append(missingVars, "GEMINI_COOKIES")
@@ -130,6 +160,14 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+func loopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func getEnv(key, defaultValue string) string {

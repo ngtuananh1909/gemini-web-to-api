@@ -2,358 +2,204 @@
   <img src="assets/gemini.png" width="400" alt="Gemini Logo">
 </p>
 
+<h1 align="center">Gemini Web API Gateway</h1>
+
 <p align="center">
-  <a href="https://github.com/ntthanh2603/gemini-web-to-api/releases"><img src="https://img.shields.io/github/v/release/ntthanh2603/gemini-web-to-api?style=flat-square&logo=github&color=3670ad" alt="Release"></a>
-  <a href="https://golang.org/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
+  Turn your authenticated Gemini Web session into an OpenAI-compatible local API.
+</p>
+
+<p align="center">
+  <a href="https://github.com/ngtuananh1909/gemini-web-to-api/releases"><img src="https://img.shields.io/github/v/release/ngtuananh1909/gemini-web-to-api?style=flat-square&logo=github&color=3670ad" alt="Release"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25.1-00ADD8?style=flat-square&logo=go" alt="Go Version"></a>
   <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker" alt="Docker"></a>
-  <a href="https://github.com/ntthanh2603/gemini-web-to-api/pkgs/container/gemini-web-to-api"><img src="https://img.shields.io/badge/GHCR-Ready-2496ED?style=flat-square&logo=github" alt="GHCR"></a>
-  <a href="https://github.com/ntthanh2603/gemini-web-to-api/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ntthanh2603/gemini-web-to-api?style=flat-square&color=orange" alt="License"></a>
-  <img src="https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=flat-square" alt="Maintained">
-</p>
-
-<p align="center">
-  <a href="https://github.com/ntthanh2603/gemini-web-to-api/stargazers"><img src="https://img.shields.io/github/stars/ntthanh2603/gemini-web-to-api?style=flat-square&color=gold&label=stars" alt="Stars"></a>
-  <a href="https://github.com/ntthanh2603/gemini-web-to-api/issues"><img src="https://img.shields.io/github/issues/ntthanh2603/gemini-web-to-api?style=flat-square&color=red&label=issues" alt="Issues"></a>
-  <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" alt="PRs Welcome">
-</p>
-
-<h1 align="center">Gemini Web To API 🚀</h1>
-
-<p align="center">
-  Transforms Google Gemini web interface into a standardized REST API.<br/>
-  Access Gemini's power without API keys — just use your cookies!
-</p>
-
-<p align="center">
-  <b>Created with ❤️ by <a href="https://github.com/ntthanh2603">@ntthanh2603</a></b>
+  <a href="https://github.com/ngtuananh1909/gemini-web-to-api/blob/main/LICENSE"><img src="https://img.shields.io/github/license/ngtuananh1909/gemini-web-to-api?style=flat-square&color=orange" alt="License"></a>
 </p>
 
 > [!NOTE]
-> This project is intended for **research and educational purposes only**. Please use responsibly and refrain from any commercial use.
+> This unofficial project is not affiliated with Google. It uses browser session cookies and reverse-engineered Gemini Web behavior that may break when Google changes the site. Treat cookies as account credentials and review [Google's Terms of Service](https://policies.google.com/terms).
 
-> [!WARNING]
-> This project is not affiliated with Google. It uses reverse-engineered web cookies and may not comply with [Google's Terms of Service](https://policies.google.com/terms). Use at your own risk — the author assumes no responsibility for any account actions or data loss.
+## What it does
 
----
+The gateway uses one signed-in Gemini Web session and presents it through these
+protocols:
 
-## 🎯 Why Gemini Web To API?
+- OpenAI-compatible chat, models, and image-generation endpoints under `/openai/v1`.
+- Gemini-native models, content generation, and research endpoints under `/gemini/v1beta`.
+- Claude-compatible messages, token counting, and models endpoints under `/claude/v1`.
 
-**Problem**: You want to use Google Gemini's latest models, but you don't have an API key or prefer not to use one.
+Model IDs are discovered from the signed-in account. Clients should list models
+at startup and use an ID returned by the gateway instead of hard-coding a model
+name from an older Gemini API release.
 
-**Solution**: Creates a local API server that:
+## Quick start with Docker Compose
 
-- ✅ Connects to Gemini's web interface using your browser cookies
-- ✅ Exposes OpenAI / Claude / Gemini-compatible API endpoints
-- ✅ No API keys needed — just cookies from your browser
-- ✅ Handles authentication and session management automatically
-
-**Use Cases**:
-
-- Use Gemini without API keys
-- Test Gemini integration locally
-- Build applications leveraging Gemini's latest models
-- Develop with cookie-based authentication
-
----
-
-## ⚡ Quick Start
-
-### 🐳 Option A — Docker Run (no setup required)
-
-> No cloning needed — pull and run directly from the registry.
-
-**Step 1 — Get your cookies**
-
-> [!WARNING]
-> Keep these values secure and **never share or commit them** — they provide direct access to your Google account.
-
-1. Go to [gemini.google.com](https://gemini.google.com) and sign in
-2. Press `F12` → **Network**, reload Gemini, and select a
-   `batchexecute?rpcids=otAQ7b` request
-3. Copy its complete `Cookie` request header. If the request URL contains an
-   account slot such as `/u/2/`, also use `GEMINI_AUTH_USER="2"` below.
-
-**Step 2 — Run**
+### 1. Clone and configure
 
 ```bash
-docker run -d -p 4981:4981 \
-  -e GEMINI_COOKIES="your_complete_cookie_header" \
-  -e GEMINI_AUTH_USER="2" \
-  -e GEMINI_REFRESH_INTERVAL=30 \
-  -e GEMINI_MAX_RETRIES=3 \
-  -e GEMINI_TEMPORARY=false \
-  -e APP_ENV=production \
-  -e RATE_LIMIT_ENABLED=true \
-  -e RATE_LIMIT_WINDOW_MS=60000 \
-  -e RATE_LIMIT_MAX_REQUESTS=10 \
-  -v ./cookies:/home/appuser/.cookies \
-  --tmpfs /tmp:rw,size=512m \
-  --tmpfs /home/appuser/.cache:rw,size=256m \
-  --name gemini-web-to-api \
-  --restart unless-stopped \
-  ghcr.io/ntthanh2603/gemini-web-to-api:latest
-```
-
-**Done!** Jump to [Test it](#-test-it). 🎉
-
----
-
-### 🛠️ Option B — Build from source
-
-> Use this if you want to build for a specific architecture (amd64, arm64, etc.) or modify the source code.
-
-**Step 1 — Clone the repository**
-
-```bash
-git clone https://github.com/ntthanh2603/gemini-web-to-api.git
+git clone https://github.com/ngtuananh1909/gemini-web-to-api.git
 cd gemini-web-to-api
+cp .env.example .env
 ```
 
-**Step 2 — Get your cookies and configure `.env`**
+Get a complete `Cookie` request header from a signed-in
+[Gemini Web](https://gemini.google.com) tab:
 
-> [!WARNING]
-> Keep these values secure and **never commit your `.env` file** — it contains credentials that provide access to your Google account.
+1. Open Developer Tools and select **Network**.
+2. Reload Gemini and select a `batchexecute?rpcids=otAQ7b` request.
+3. Copy the complete `Cookie` request header into `GEMINI_COOKIES`.
+4. If the request URL contains `/u/2/`, set `GEMINI_AUTH_USER=2`. Keep the
+   cookie and account slot from the same browser tab.
 
-1. Go to [gemini.google.com](https://gemini.google.com) and sign in
-2. Press `F12` → **Network**, reload Gemini, and select a
-   `batchexecute?rpcids=otAQ7b` request
-3. Copy its complete `Cookie` request header into `GEMINI_COOKIES`.
-4. Match `GEMINI_AUTH_USER` to the request URL. For example, use `2` when the
-   URL contains `/u/2/`; leave it empty when there is no `/u/<number>/`.
-   Always take the cookie and account slot from the same browser tab.
-5. Create your `.env` from the example:
+Keep cookies, `.env`, and the gateway data directory private. The cookies can
+authorize requests as the Google account that supplied them.
 
-   ```bash
-   cp .env.example .env
-   ```
+Leave `API_KEY` empty for the usual local setup. The gateway generates a key,
+persists it, and shows it on the local dashboard. To choose your own stable key,
+set it in `.env`:
 
-6. Paste the values into `.env`:
+```env
+API_KEY=replace-with-a-long-random-value
+```
 
-   ```env
-   GEMINI_COOKIES=your_complete_cookie_header
-   GEMINI_AUTH_USER=2
-   GEMINI_REFRESH_INTERVAL=30
-   GEMINI_MAX_RETRIES=3
-   GEMINI_TEMPORARY=false
-   APP_ENV=production
-   RATE_LIMIT_ENABLED=true
-   RATE_LIMIT_WINDOW_MS=60000
-   RATE_LIMIT_MAX_REQUESTS=10
-   ```
+Authentication is enabled by default. `API_KEY` is optional as configuration:
+when it is empty, the gateway creates and persists a local key under
+`GATEWAY_DATA_DIR`. Set a stable value when scripts or remote clients need a
+known key. Requests may send it as `Authorization: Bearer <key>` or
+`x-api-key: <key>`. The local dashboard provides the key rotation control for
+the generated key.
 
-**Step 3 — Run**
-
-Pick whichever method suits your setup:
-
-| Method             | Command                        | Requirements                       |
-| ------------------ | ------------------------------ | ---------------------------------- |
-| 🐳 Docker Compose  | `docker compose up -d --build` | Docker                             |
-| 🐹 Go direct       | `go run cmd/server/main.go`    | [Go 1.21+](https://golang.org/dl/) |
-| ⚡ Task (dev mode) | `task dev`                     | [Task](https://taskfile.dev)       |
-
-**Done!** Jump to [Test it](#-test-it). 🎉
-
----
-
-### ✅ Test it
+### 2. Start the gateway
 
 ```bash
-curl -X POST http://localhost:4981/openai/v1/chat/completions \
+docker compose up -d
+docker compose logs -f gateway
+```
+
+Compose binds the host port to `127.0.0.1:4981` and sets `HOST=0.0.0.0`
+inside the container. Gateway state is fixed at `/home/appuser/.gateway` in
+Compose; it and `.cookies` are persisted in named volumes owned by the non-root
+container user. Compose's `DASHBOARD_LOCAL_PORT=true` asserts this loopback-only
+host mapping; keep the dashboard disabled if you publish the port publicly.
+Earlier `.cookies` bind-mount files are not copied into the new named volume;
+the gateway can rebuild its cache from `GEMINI_COOKIES` on first start.
+
+The local dashboard is available at [http://127.0.0.1:4981/](http://127.0.0.1:4981/)
+when `DASHBOARD_ENABLED=true`. It is intended for local administration and
+should not be published directly to the internet.
+
+### 3. Make a request
+
+Copy the API key from the dashboard, then use a model returned by the models endpoint:
+
+```bash
+export API_KEY='YOUR_GATEWAY_API_KEY'
+curl -s http://127.0.0.1:4981/openai/v1/models \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Then pass one of the returned IDs to the OpenAI-compatible endpoint:
+
+```bash
+curl -X POST http://127.0.0.1:4981/openai/v1/chat/completions \
+  -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model": "gemini-advanced", "messages": [{"role": "user", "content": "Hello!"}]}'
+  -d '{"model":"MODEL_ID_FROM_THE_LIST","messages":[{"role":"user","content":"Hello!"}]}'
 ```
 
-Your Gemini Web To API is running at `http://localhost:4981` 🎉
+The interactive API reference is at `/docs`; the raw specification is at
+`/openapi.json`.
 
----
+## Dashboard and remote API access
 
-## ✨ Features
+The dashboard is a local control surface. Keep the default `HOST=127.0.0.1`
+when the gateway and its clients run on the same machine. A remote application
+should use a separately secured reverse proxy that forwards only API routes.
+If the gateway itself must bind to a network interface, set `HOST=0.0.0.0`,
+`DASHBOARD_ENABLED=false`, restrict access with a firewall or reverse proxy,
+and keep authentication enabled.
 
-- 🌉 **Universal AI Bridge**: One server, three protocols (OpenAI, Claude, Gemini)
-- 🔌 **Drop-in Replacement**: Works with existing OpenAI / Claude / Gemini SDKs
-- 🔄 **Smart Session Management**: Auto-rotates cookies to keep sessions alive
-- ⚡ **High Performance**: Built with Go and Fiber for speed
-- 🐳 **Production Ready**: Docker Compose support, Scalar UI, health checks
-- 📝 **Well Documented**: Interactive API docs at `/docs`
-- 🖼️ **Image Generation**: OpenAI-compatible text-to-image with authenticated `b64_json` output
-- 🧩 **Image Inputs**: Remote URLs, `data:` URLs and multiple reference images in chat requests
+To run API-only, set:
 
-See [Image generation and image inputs](docs/image-generation.md) for tested examples, limitations and security guidance.
+```env
+DASHBOARD_ENABLED=false
+```
 
----
+This leaves the protocol endpoints available while disabling the dashboard.
 
-## 🛠️ Configuration
+## Configuration
 
-### Environment Variables
+`.env.example` lists the complete set of supported settings. The most useful
+values are:
 
-| Variable                  | Required | Default | Description                                        |
-| ------------------------- | -------- | ------- | -------------------------------------------------- |
-| `GEMINI_COOKIES`          | ✅ Yes   | —       | Complete Cookie request header copied from the Gemini Web tab |
-| `GEMINI_AUTH_USER`        | ❌ No    | —       | Google account slot from the Gemini URL, e.g. `2` for `/u/2/app` |
-| `GEMINI_REFRESH_INTERVAL` | ❌ No    | `30`    | Cookie rotation interval (minutes)                 |
-| `GEMINI_MAX_RETRIES`      | ❌ No    | `3`     | Max retry attempts when an API call fails          |
-| `GEMINI_TEMPORARY`        | ❌ No    | `false` | Enable stateless/incognito mode for all requests   |
-| `PORT`                    | ❌ No    | `4981`  | Server port                                        |
-| `RATE_LIMIT_ENABLED`      | ❌ No    | `false` | Enable or disable rate limiting                    |
-| `RATE_LIMIT_WINDOW_MS`    | ❌ No    | `60000` | Rate limit time window in milliseconds             |
-| `RATE_LIMIT_MAX_REQUESTS` | ❌ No    | `10`    | Maximum number of requests allowed per time window |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `HOST` | `127.0.0.1` | Listener address. Compose overrides this inside the container. |
+| `PORT` | `4981` | HTTP listener port. |
+| `API_AUTH_ENABLED` | `true` | Require an API key on protected routes. |
+| `API_KEY` | empty | Optional configured key; an empty value uses a persisted local key. |
+| `GATEWAY_DATA_DIR` | `.gateway` | Gateway state path for direct Go runs; Compose uses its fixed named volume path. |
+| `DASHBOARD_ENABLED` | `true` on loopback | Serve the local dashboard; defaults off for public listener addresses. |
+| `GEMINI_COOKIES` | — | Complete Gemini Web `Cookie` header; required. |
+| `GEMINI_AUTH_USER` | empty | Account slot from the Gemini Web URL, such as `2` for `/u/2/app`. |
+| `GEMINI_REFRESH_INTERVAL` | `5` | Cookie/session refresh interval in minutes. |
+| `GEMINI_MAX_RETRIES` | `3` | Maximum retry attempts for an upstream request. |
+| `GEMINI_TEMPORARY` | `false` | Use stateless/incognito mode for requests. |
+| `RATE_LIMIT_ENABLED` | `false` | Enable request rate limiting. |
+| `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window in milliseconds. |
+| `RATE_LIMIT_MAX_REQUESTS` | `10` | Requests allowed in one window. |
 
-### Configuration Priority
+Environment variables override `.env` values. Never commit a populated `.env`.
 
-1. **Environment Variables** (highest priority)
-2. **`.env` file**
-3. **Defaults** (lowest priority)
+## SDK examples
 
----
-
-## 🧪 Usage Examples
-
-### Model selection
-
-The provider discovers selectable models and their internal IDs from the signed-in account's Gemini Web model registry during session initialization and refresh. List the current choices with:
+The files in [`examples/`](examples/) read `API_KEY` from the environment,
+discover a current model, and call the matching protocol endpoint:
 
 ```bash
-curl http://localhost:4981/openai/v1/models
+export API_KEY='YOUR_GATEWAY_API_KEY'
+python examples/openai_client.py
+python examples/gemini_client.py
+python examples/claude_client.py
+python examples/deep_search_client.py
 ```
 
-Use a returned model ID in your requests. IDs are derived from Gemini's current
-display labels, such as `gemini-3.6-flash` and `gemini-3.1-pro`; they are not a
-fixed allowlist. Every selectable registry entry is returned, so newly added
-Gemini models become available without a code update. Category names returned
-by Gemini remain aliases, and `gemini-advanced` is retained as a compatibility
-alias for the discovered Pro category. An unavailable or unknown name returns
-an error instead of silently selecting another model.
-
-Model names are not seeded locally. When Google adds, removes, or renames a model, use the names returned by this endpoint instead of relying on old Gemini API version names.
-
-The `model` field in a completion response contains the resolved versioned
-model ID (for example, a `gemini-advanced` request currently returns
-`gemini-3.1-pro`). Generated self-introductions are ordinary model output and
-can still be inaccurate.
-
-Gemini Web may silently serve a lower-tier model after the selected model's
-quota is exhausted. The proxy detects an unambiguous different model ID in the
-protocol response and reports that model in `model`. The original caller value
-is preserved in `requested_model`. This keeps the response truthful without
-blocking a model that Gemini still advertises as selectable; after its quota
-resets, `model` returns to the requested version.
-
-### OpenAI SDK (Python)
-
-```python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="http://localhost:4981/openai/v1",
-    api_key="not-needed"
-)
-
-response = client.chat.completions.create(
-    model="gemini-advanced",
-    messages=[{"role": "user", "content": "Hello!"}]
-)
-print(response.choices[0].message.content)
-```
-
-### Claude SDK (Python)
-
-```python
-from langchain_anthropic import ChatAnthropic
-
-llm = ChatAnthropic(
-    base_url="http://localhost:4981/claude",
-    model="gemini-advanced",
-    api_key="not-needed"
-)
-
-response = llm.invoke("Explain quantum computing")
-print(response.content)
-```
-
-### Gemini Native SDK (Python)
-
-```python
-from google import genai
-
-client = genai.Client(
-    api_key="not-needed",
-    http_options={
-        "base_url": "http://localhost:4981/gemini",
-        "api_version": "v1beta",
-    },
-)
-
-response = client.models.generate_content(
-    model="gemini-advanced",
-    contents="Write a poem about coding",
-)
-print(response.text)
-```
-
-Install the maintained SDK with `pip install google-genai`. Both regular
-generation and `generate_content_stream` are supported; the latter uses the
-SDK's `alt=sse` transport.
-
-### cURL
+Install the client libraries used by the example you want to run. For the
+OpenAI-compatible Python client:
 
 ```bash
-curl -X POST http://localhost:4981/openai/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemini-advanced",
-    "messages": [{"role": "user", "content": "What is AI?"}],
-    "stream": false
-  }'
+python -m pip install openai
 ```
 
-More examples are available in the [`examples/`](examples/) directory.
+For image generation and base64 image input, see
+[`docs/image-generation.md`](docs/image-generation.md).
 
----
+## Build from source
 
-## 📘 API Documentation
+Go 1.25.1 is required:
 
-Once running, visit **`http://localhost:4981/docs`** for interactive API documentation powered by [Scalar](https://scalar.com).
+```bash
+go test ./...
+go vet ./...
+go build -o gemini-web-to-api ./cmd/server/main.go
+```
 
-![Scalar UI](assets/swagger.png)
+Run directly with a populated `.env`:
 
----
+```bash
+go run ./cmd/server/main.go
+```
 
-## 🤝 Contributing
+Live end-to-end tests need valid cookies, network access, and real Gemini
+quota:
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+E2E=1 go test ./tests/e2e -v -count=1 -timeout 15m
+```
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## Author and license
 
----
+Created by **Nguyễn Tuấn Thành** ([@ntthanh2603](https://github.com/ntthanh2603)).
+Contributions are welcome through the
+[GitHub repository](https://github.com/ngtuananh1909/gemini-web-to-api).
 
-## 👤 Author
-
-- **Nguyễn Tuấn Thành** ([@ntthanh2603](https://github.com/ntthanh2603))
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
-
-## ⭐ Star History
-
-If you find this project useful, please consider giving it a star! ⭐
-
----
-
-## 🔗 Links
-
-- **GitHub**: [ntthanh2603/gemini-web-to-api](https://github.com/ntthanh2603/gemini-web-to-api)
-- **Gemini Web**: [gemini.google.com](https://gemini.google.com)
-- **Issues**: [Report a bug](https://github.com/ntthanh2603/gemini-web-to-api/issues)
-
----
-
-**Created with ❤️ by [@ntthanh2603](https://github.com/ntthanh2603)**
+This project is licensed under the [MIT License](LICENSE).

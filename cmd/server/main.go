@@ -1,6 +1,7 @@
 package main
 
 import (
+	"gemini-web-to-api/internal/auth"
 	"gemini-web-to-api/internal/commons/configs"
 	"gemini-web-to-api/internal/modules"
 	"gemini-web-to-api/internal/server"
@@ -14,6 +15,7 @@ func main() {
 	fx.New(
 		fx.Provide(
 			configs.New,
+			auth.NewManager,
 			func(cfg *configs.Config) (*zap.Logger, error) {
 				return logger.New(cfg.LogLevel)
 			},

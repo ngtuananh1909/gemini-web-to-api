@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
+	"gemini-web-to-api/internal/auth"
 	"gemini-web-to-api/internal/commons/configs"
 
 	"github.com/gofiber/fiber/v3"
@@ -16,25 +18,35 @@ import (
 )
 
 // New creates a new Fiber app instance
-func NewGeminiWebToAPI(log *zap.Logger, cfg *configs.Config) *fiber.App {
+func NewGeminiWebToAPI(log *zap.Logger, cfg *configs.Config, manager *auth.Manager) *fiber.App {
 	app := fiber.New(fiber.Config{
-		AppName: "Gemini Web To API",
+		AppName: "Gemini Web API Gateway",
 	})
-
-	app.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "x-api-key", "anthropic-version"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowCredentials: false,
-	}))
 
 	app.Use(recover.New())
 
+	apiCORS := cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "x-api-key", "x-goog-api-key", "anthropic-version"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowCredentials: false,
+	}
+	apiPrefixes := []string{"/openai/v1", "/claude/v1", "/gemini/v1beta"}
+	for _, prefix := range apiPrefixes {
+		app.Use(prefix, cors.New(apiCORS))
+	}
+
 	if cfg.RateLimit.Enabled {
-		app.Use(limiter.New(limiter.Config{
+		limitAPI := limiter.New(limiter.Config{
 			Max:        cfg.RateLimit.MaxRequests,
 			Expiration: time.Duration(cfg.RateLimit.WindowMs) * time.Millisecond,
-		}))
+		})
+		for _, prefix := range apiPrefixes {
+			app.Use(prefix, limitAPI)
+		}
+	}
+	for _, prefix := range apiPrefixes {
+		app.Use(prefix, manager.Middleware())
 	}
 
 	app.Get("/docs", ScalarUI)
@@ -69,7 +81,7 @@ func Register404Handler(app *fiber.App) {
 // RegisterFiberLifecycle registers the Fiber app lifecycle hooks
 func RegisterFiberLifecycle(lc fx.Lifecycle, app *fiber.App, cfg *configs.Config, log *zap.Logger) {
 	port := cfg.Server.Port
-	address := fmt.Sprintf(":%s", port)
+	address := net.JoinHostPort(cfg.Server.Host, port)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
@@ -89,4 +101,3 @@ func RegisterFiberLifecycle(lc fx.Lifecycle, app *fiber.App, cfg *configs.Config
 		},
 	})
 }
-

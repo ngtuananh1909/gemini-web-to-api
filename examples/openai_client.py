@@ -1,18 +1,27 @@
 import base64
-
-from openai import OpenAI
+import os
 from pathlib import Path
 
-client = OpenAI(
-    base_url="http://localhost:4981/openai/v1",
-    api_key="not-needed"
-)
+from openai import OpenAI
 
-def image_generation_example():
-    # Inspect client.models.list() for the account's selectable web models.
-    # gemini-pro selects Pro; unavailable Pro returns an error.
+
+API_KEY = os.environ["API_KEY"]
+BASE_URL = os.getenv("GATEWAY_OPENAI_BASE_URL", "http://127.0.0.1:4981/openai/v1")
+client = OpenAI(base_url=BASE_URL, api_key=API_KEY)
+
+
+def discovered_model() -> str:
+    models = client.models.list().data
+    if not models:
+        raise RuntimeError("The gateway returned no models; check Gemini session readiness")
+    return os.getenv("GEMINI_MODEL", models[0].id)
+
+
+def image_generation_example() -> None:
+    # The model list is account-specific. Set GEMINI_MODEL when the account has
+    # more than one image-capable model and you want a particular choice.
     response = client.images.generate(
-        model="gemini-pro",
+        model=discovered_model(),
         prompt="A cinematic cyberpunk rabbit wearing a yellow raincoat, neon city, high detail",
         n=1,
         size="1024x1024",
