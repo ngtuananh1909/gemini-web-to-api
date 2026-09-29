@@ -1,14 +1,225 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "✨Reverse-engineered API for Gemini web app. It can be used as a genuine API key from OpenAI, Gemini, and Claude.",
-        "title": "Gemini Web To API",
+        "description": "Gateway API for Gemini Web with Gemini-native, OpenAI-compatible, and Claude-compatible endpoints. Protected API routes accept an API key as a Bearer token, x-api-key, or x-goog-api-key header.",
+        "title": "Gemini Web API Gateway",
         "contact": {},
         "version": "1.0"
     },
-    "host": "localhost:4981",
     "basePath": "/",
+    "securityDefinitions": {
+        "bearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": "Send the configured API key as: Bearer <API_KEY>"
+        },
+        "apiKeyAuth": {
+            "type": "apiKey",
+            "name": "x-api-key",
+            "in": "header",
+            "description": "Send the configured API key in the x-api-key header"
+        },
+        "googleApiKeyAuth": {
+            "type": "apiKey",
+            "name": "x-goog-api-key",
+            "in": "header",
+            "description": "Send the configured API key in the x-goog-api-key header"
+        }
+    },
+    "security": [
+        {
+            "bearerAuth": []
+        },
+        {
+            "apiKeyAuth": []
+        },
+        {
+            "googleApiKeyAuth": []
+        }
+    ],
     "paths": {
+        "/": {
+            "get": {
+                "description": "Serves the local dashboard when DASHBOARD_ENABLED is true.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Dashboard",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Dashboard HTML",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Dashboard disabled"
+                    }
+                }
+            }
+        },
+        "/dashboard/app.css": {
+            "get": {
+                "description": "Serves dashboard styles when the dashboard is enabled.",
+                "produces": [
+                    "text/css"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard stylesheet",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "CSS stylesheet",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/app.js": {
+            "get": {
+                "description": "Serves dashboard JavaScript when the dashboard is enabled.",
+                "produces": [
+                    "application/javascript"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard script",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "JavaScript bundle",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/api/status": {
+            "get": {
+                "description": "Returns gateway and provider readiness information for the dashboard.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard status",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Gateway status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/api/connection": {
+            "get": {
+                "description": "Returns the current Gemini Web connection status for the dashboard.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Dashboard connection status",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Connection status",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/dashboard/api/api-key/rotate": {
+            "post": {
+                "description": "Rotates a generated gateway API key. Requires a local same-origin JSON request with X-Dashboard-Action: rotate. Fetch the new key from /dashboard/api/connection afterward.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Dashboard"
+                ],
+                "summary": "Rotate API key",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Rotation completed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Host or origin denied"
+                    },
+                    "409": {
+                        "description": "Rotation unavailable for a configured key or disabled authentication"
+                    }
+                }
+            }
+        },
+        "/docs": {
+            "get": {
+                "description": "Serves the interactive API documentation.",
+                "produces": [
+                    "text/html"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Interactive API documentation",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Scalar API documentation",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/openapi.json": {
+            "get": {
+                "description": "Returns this OpenAPI document.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "OpenAPI document",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "OpenAPI document",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/claude/v1/messages": {
             "post": {
                 "description": "Sends a message to the Claude model. Supports both standard JSON response and streaming (SSE) response.",
@@ -184,6 +395,117 @@
                 }
             }
         },
+        "/gemini/v1beta/deepresearch/stream": {
+            "post": {
+                "description": "Performs deep research and streams progress and final output as server-sent events.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Gemini"
+                ],
+                "summary": "Deep Research (streaming)",
+                "parameters": [
+                    {
+                        "description": "Deep Research Request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/gemini-web-to-api_internal_modules_gemini_dto.DeepResearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Server-sent research events",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/gemini/v1beta/interactions": {
+            "post": {
+                "description": "Starts a Gemini deep-research interaction, optionally in the background.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json",
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "Gemini"
+                ],
+                "summary": "Create research interaction",
+                "parameters": [
+                    {
+                        "description": "Interaction request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Server-sent events when stream is true",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "202": {
+                        "description": "Background interaction accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/gemini/v1beta/interactions/{id}": {
+            "get": {
+                "description": "Returns the current status or result of a background research interaction.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Gemini"
+                ],
+                "summary": "Get research interaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Interaction ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Interaction status or result",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Interaction not found"
+                    }
+                }
+            }
+        },
         "/gemini/v1beta/models": {
             "get": {
                 "description": "Returns a list of models supported by the Gemini API",
@@ -203,6 +525,38 @@
                         "schema": {
                             "$ref": "#/definitions/gemini-web-to-api_internal_modules_gemini_dto.GeminiModelsResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/gemini/v1beta/models/{model}": {
+            "get": {
+                "description": "Returns details for a model discovered from the signed-in Gemini Web account.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Gemini"
+                ],
+                "summary": "Get Gemini Model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gemini-web-to-api_internal_modules_gemini_dto.GeminiModel"
+                        }
+                    },
+                    "404": {
+                        "description": "Model not found"
                     }
                 }
             }
@@ -299,6 +653,7 @@
                     "System"
                 ],
                 "summary": "Health check",
+                "security": [],
                 "responses": {
                     "200": {
                         "description": "Service is healthy",
@@ -366,6 +721,49 @@
                 }
             }
         },
+        "/openai/v1/images/generations": {
+            "post": {
+                "description": "Generates an image through the OpenAI-compatible image API.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenAI"
+                ],
+                "summary": "Generate Image (OpenAI)",
+                "parameters": [
+                    {
+                        "description": "Image generation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Generated image data",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/openai/v1/models": {
             "get": {
                 "description": "Returns a list of models supported by the OpenAI-compatible API",
@@ -385,6 +783,38 @@
                         "schema": {
                             "$ref": "#/definitions/gemini-web-to-api_internal_commons_models.ModelListResponse"
                         }
+                    }
+                }
+            }
+        },
+        "/openai/v1/models/{model}": {
+            "get": {
+                "description": "Returns details for a model discovered from the signed-in Gemini Web account.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "OpenAI"
+                ],
+                "summary": "Get OpenAI Model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/gemini-web-to-api_internal_commons_models.ModelData"
+                        }
+                    },
+                    "404": {
+                        "description": "Model not found"
                     }
                 }
             }

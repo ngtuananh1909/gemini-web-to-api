@@ -49,3 +49,84 @@ func TestNewDerivesAuthenticationFromGeminiCookies(t *testing.T) {
 		t.Fatalf("incorrect Gemini config derived from full Cookie header: %#v", cfg.Gemini)
 	}
 }
+
+func TestNewLoadsGatewayDefaultsAndOverrides(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "__Secure-1PSID=psid; __Secure-1PSIDTS=psidts")
+	t.Setenv("HOST", "0.0.0.0")
+	t.Setenv("API_AUTH_ENABLED", "false")
+	t.Setenv("API_KEY", "configured-key")
+	t.Setenv("GATEWAY_DATA_DIR", "/tmp/gateway-state")
+	t.Setenv("DASHBOARD_ENABLED", "false")
+
+	cfg, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.Host != "0.0.0.0" {
+		t.Errorf("host = %q, want 0.0.0.0", cfg.Server.Host)
+	}
+	if cfg.Auth.Enabled || cfg.Auth.APIKey != "configured-key" || cfg.Auth.DataDir != "/tmp/gateway-state" {
+		t.Errorf("unexpected auth config: %#v", cfg.Auth)
+	}
+	if cfg.Dashboard.Enabled {
+		t.Errorf("dashboard should be disabled")
+	}
+}
+
+func TestNewUsesGatewayDefaults(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "__Secure-1PSID=psid; __Secure-1PSIDTS=psidts")
+	for _, name := range []string{"HOST", "API_AUTH_ENABLED", "API_KEY", "GATEWAY_DATA_DIR", "DASHBOARD_ENABLED"} {
+		t.Setenv(name, "")
+	}
+
+	cfg, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Server.Host != "127.0.0.1" {
+		t.Errorf("host = %q, want 127.0.0.1", cfg.Server.Host)
+	}
+	if !cfg.Auth.Enabled || cfg.Auth.DataDir != ".gateway" || cfg.Auth.APIKey != "" {
+		t.Errorf("unexpected auth defaults: %#v", cfg.Auth)
+	}
+	if !cfg.Dashboard.Enabled {
+		t.Errorf("dashboard should default to enabled")
+	}
+}
+
+func TestNewDisablesDashboardOnPublicListenerByDefault(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "__Secure-1PSID=psid; __Secure-1PSIDTS=psidts")
+	t.Setenv("HOST", "0.0.0.0")
+	t.Setenv("DASHBOARD_ENABLED", "")
+	cfg, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Dashboard.Enabled {
+		t.Fatal("dashboard should default to disabled on a public listener")
+	}
+}
+
+func TestNewRejectsPublicDashboardWithoutLocalPortGuarantee(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "__Secure-1PSID=psid; __Secure-1PSIDTS=psidts")
+	t.Setenv("HOST", "0.0.0.0")
+	t.Setenv("DASHBOARD_ENABLED", "true")
+	t.Setenv("DASHBOARD_LOCAL_PORT", "")
+	if _, err := New(); err == nil {
+		t.Fatal("public listener with dashboard enabled should require a local host port guarantee")
+	}
+}
+
+func TestNewAllowsContainerListenerBehindLocalPort(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "__Secure-1PSID=psid; __Secure-1PSIDTS=psidts")
+	t.Setenv("HOST", "0.0.0.0")
+	t.Setenv("DASHBOARD_ENABLED", "true")
+	t.Setenv("DASHBOARD_LOCAL_PORT", "true")
+	cfg, err := New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Dashboard.Enabled || !cfg.Dashboard.LocalPortGuaranteed {
+		t.Fatalf("unexpected dashboard config: %#v", cfg.Dashboard)
+	}
+}

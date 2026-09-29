@@ -1,37 +1,66 @@
 package utils
 
-import "testing"
+import (
+	"bytes"
+	"errors"
+	"strings"
+	"testing"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+)
+
+type secretOnMarshal struct{}
+
+func (secretOnMarshal) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("invalid value")
+}
+
+func (secretOnMarshal) String() string {
+	return "test-secret-never-log"
+}
+
+func TestMarshalJSONSafelyDoesNotLogPayload(t *testing.T) {
+	var output bytes.Buffer
+	logger := zap.New(zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), zapcore.AddSync(&output), zapcore.ErrorLevel))
+	if got := string(MarshalJSONSafely(logger, secretOnMarshal{})); got != "{}" {
+		t.Fatalf("got %q, want empty object", got)
+	}
+	if strings.Contains(output.String(), "test-secret-never-log") {
+		t.Fatal("marshal error logged the payload")
+	}
+}
 
 func TestExtractThinkingAndText(t *testing.T) {
 	tests := []struct {
-		name          string
-		input         string
-		wantThinking  string
-		wantText      string
+		name         string
+		input        string
+		wantThinking string
+		wantText     string
 	}{
 		{
-			name:          "No thinking tokens",
-			input:         "Hello world",
-			wantThinking:  "",
-			wantText:      "Hello world",
+			name:         "No thinking tokens",
+			input:        "Hello world",
+			wantThinking: "",
+			wantText:     "Hello world",
 		},
 		{
-			name:          "Standard tags with thought",
-			input:         "Hello! <ctrl94>thought\nThinking process...\n<ctrl95>Actual response here",
-			wantThinking:  "Thinking process...",
-			wantText:      "Hello! Actual response here",
+			name:         "Standard tags with thought",
+			input:        "Hello! <ctrl94>thought\nThinking process...\n<ctrl95>Actual response here",
+			wantThinking: "Thinking process...",
+			wantText:     "Hello! Actual response here",
 		},
 		{
-			name:          "No end tag",
-			input:         "Hello! <ctrl94>thought\nStill thinking...",
-			wantThinking:  "Still thinking...",
-			wantText:      "Hello!",
+			name:         "No end tag",
+			input:        "Hello! <ctrl94>thought\nStill thinking...",
+			wantThinking: "Still thinking...",
+			wantText:     "Hello!",
 		},
 		{
-			name:          "Alternate start tag",
-			input:         "<ctrl94>\nThinking...\n<ctrl95>\nDone",
-			wantThinking:  "Thinking...",
-			wantText:      "Done",
+			name:         "Alternate start tag",
+			input:        "<ctrl94>\nThinking...\n<ctrl95>\nDone",
+			wantThinking: "Thinking...",
+			wantText:     "Done",
 		},
 	}
 

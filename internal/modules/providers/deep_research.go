@@ -313,7 +313,7 @@ func (c *Client) DeepResearch(ctx context.Context, query string, opts ...DeepRes
 	}
 	c.mu.RUnlock()
 
-	c.log.Info("🔬 Deep research starting", zap.String("query", query), zap.String("model", model))
+	c.log.Info("🔬 Deep research starting", zap.String("model", model))
 
 	originalQuery := query
 
@@ -358,7 +358,7 @@ func (c *Client) DeepResearch(ctx context.Context, query string, opts ...DeepRes
 	var subResults []*subResearchResult
 	for i, q := range plan.SubQuestions {
 		stepNum++
-		c.log.Info("🔍 Researching sub-question", zap.Int("num", i+1), zap.String("question", q))
+		c.log.Info("🔍 Researching sub-question", zap.Int("num", i+1))
 
 		sub, err := c.researchSubQuestion(ctx, q, cfg.Language, model)
 		if err != nil {
@@ -415,7 +415,6 @@ func (c *Client) DeepResearch(ctx context.Context, query string, opts ...DeepRes
 	}
 
 	c.log.Info("✅ Deep research completed",
-		zap.String("query", originalQuery),
 		zap.Int("steps", len(steps)),
 		zap.Int("sources", len(allSources)),
 		zap.Int64("duration_ms", durationMs),

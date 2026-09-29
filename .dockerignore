@@ -1,5 +1,6 @@
 .git
 .cookies
+.gateway
 .env
 .env.example
 Dockerfile

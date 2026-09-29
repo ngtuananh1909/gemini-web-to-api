@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Gemini Web API Gateway</title>
+  <link rel="stylesheet" href="/dashboard/app.css">
+  <script src="/dashboard/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">G</span><span>Gemini Web API Gateway</span></div>
+      <span id="status-badge" class="status-badge connecting" aria-live="polite">Connecting</span>
+    </header>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">LOCAL DEVELOPER GATEWAY</p>
+        <h1 id="page-title">Your Gemini Web session, ready for your tools.</h1>
+        <p id="status-message" class="lead" role="status">Connecting to Gemini Web.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="connection-title">
+        <div class="section-heading"><div><p class="eyebrow">01 / SETUP</p><h2 id="connection-title">API connection</h2></div><button id="copy-config" class="button button-secondary" type="button" disabled>Copy config</button></div>
+        <div class="field-list">
+          <div class="field-row"><div class="field-label"><label for="base-url">Base URL</label><small>Use this in OpenAI-compatible clients</small></div><div class="field-value"><code id="base-url"></code><button class="button button-small" type="button" data-copy="base-url">Copy</button></div></div>
+          <div class="field-row"><div class="field-label"><label for="api-key">Gateway API key</label><small>Separate from your Gemini cookies</small></div><div class="field-value"><code id="api-key">Loading…</code><button class="button button-small" type="button" data-copy="api-key" disabled>Copy</button></div></div>
+          <div class="field-row"><div class="field-label"><label for="model-select">Model</label><small>Discovered from your Gemini account</small></div><div class="field-value"><select id="model-select" disabled><option>Waiting for models…</option></select><button class="button button-small" type="button" data-copy="model-select" disabled>Copy</button></div></div>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="test-title">
+        <div class="section-heading"><div><p class="eyebrow">02 / TRY IT</p><h2 id="test-title">Test the API</h2></div><span class="section-note">One prompt, one response</span></div>
+        <form id="test-form">
+          <label class="sr-only" for="prompt">Prompt</label>
+          <textarea id="prompt" rows="3" maxlength="8000" placeholder="Ask Gemini something…" required></textarea>
+          <div class="form-actions"><span>Uses the selected model and OpenAI-compatible endpoint.</span><button id="send-button" class="button button-primary" type="submit" disabled>Send prompt <span aria-hidden="true">↗</span></button></div>
+        </form>
+        <div class="response-block"><div class="response-heading"><span>Response</span><span id="response-model"></span></div><pre id="test-output" aria-live="polite">Your response will appear here.</pre></div>
+      </section>
+
+      <details class="advanced"><summary>Advanced <span aria-hidden="true">↗</span></summary><div class="advanced-content"><div class="advanced-grid"><div><span>Claude API</span><code id="claude-url"></code></div><div><span>Gemini API</span><code id="gemini-url"></code></div><div><span>Documentation</span><a href="/docs">Open API docs ↗</a></div><div><span>Health</span><a href="/health">Service health ↗</a></div></div><div class="advanced-footer"><p>Rotating the gateway key immediately disconnects clients using the previous key. Gemini cookies are unaffected.</p><button id="rotate-key" class="button button-danger" type="button" disabled>Rotate API key</button></div></div></details>
+      <p id="notice" class="notice" aria-live="polite"></p>
+    </main>
+    <footer>Gemini Web API Gateway <span>Local utility · Unofficial project</span></footer>
+  </div>
+</body>
+</html>

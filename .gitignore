@@ -31,6 +31,9 @@ config.yml
 # cookies
 .cookies/
 
+# gateway state, generated keys, and local dashboard data
+.gateway/
+
 # env file
 .env
 
