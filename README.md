@@ -41,14 +41,11 @@ cd gemini-web-to-api
 cp .env.example .env
 ```
 
-Get a complete `Cookie` request header from a signed-in
-[Gemini Web](https://gemini.google.com) tab:
-
-1. Open Developer Tools and select **Network**.
-2. Reload Gemini and select a `batchexecute?rpcids=otAQ7b` request.
-3. Copy the complete `Cookie` request header into `GEMINI_COOKIES`.
-4. If the request URL contains `/u/2/`, set `GEMINI_AUTH_USER=2`. Keep the
-   cookie and account slot from the same browser tab.
+Get your session credentials from a signed-in [Gemini Web](https://gemini.google.com) tab:
+- **Fastest way**: Open Developer Tools (`F12`) -> **Application** -> **Cookies** -> `https://gemini.google.com`, copy the Value of `__Secure-1PSID`, and set `GEMINI_COOKIES=your_1psid_value` (or `__Secure-1PSID=...`) in `.env`.
+- **Alternative**: Open Developer Tools -> **Network**, reload Gemini, select any `batchexecute` request, and copy the complete `Cookie` header into `GEMINI_COOKIES`.
+- The gateway will automatically mint and rotate short-lived tokens (`__Secure-1PSIDTS`) in the background so you don't need to re-copy cookies periodically.
+- If the request URL contains `/u/2/`, set `GEMINI_AUTH_USER=2`. Keep the cookie and account slot from the same browser tab.
 
 Keep cookies, `.env`, and the gateway data directory private. The cookies can
 authorize requests as the Google account that supplied them.

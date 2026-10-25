@@ -111,16 +111,11 @@ func (c *Client) Init(ctx context.Context) error {
 	configPSIDTS := cleanCookie(c.cookies.Secure1PSIDTS) // Save original config value
 	c.cookies.Secure1PSIDTS = configPSIDTS
 
-	// Check if we should use cached cookies or clear cache
+	// Check if we should use cached cookies
 	if c.cookies.Secure1PSID != "" {
 		cachedTS, err := c.LoadCachedCookies()
-
-		// If config has a new PSIDTS that differs from cache, clear cache and use config
-		if configPSIDTS != "" && cachedTS != "" && configPSIDTS != cachedTS {
-			_ = c.ClearCookieCache()
-			// Keep using the config value (already set above)
-		} else if err == nil && cachedTS != "" && configPSIDTS == "" {
-			// Only use cache if config doesn't provide PSIDTS
+		if err == nil && cachedTS != "" {
+			// Prioritize valid cached token from previous rotation/session
 			c.cookies.Secure1PSIDTS = cachedTS
 			c.log.Info("Loaded __Secure-1PSIDTS from cache")
 		}
@@ -130,7 +125,7 @@ func (c *Client) Init(ctx context.Context) error {
 	if c.cookies.Secure1PSID != "" && c.cookies.Secure1PSIDTS == "" {
 		c.log.Info("Only __Secure-1PSID provided, attempting to obtain __Secure-1PSIDTS via rotation...")
 		if err := c.RotateCookies(); err != nil {
-			c.log.Info("Rotation failed, proceeding with just __Secure-1PSID (might fail)", zap.String("error", err.Error()))
+			c.log.Warn("Initial rotation failed; Google requires both __Secure-1PSID and __Secure-1PSIDTS on initial bootstrap", zap.String("error", err.Error()))
 		} else {
 			c.log.Info("Successfully obtained __Secure-1PSIDTS via rotation")
 		}
@@ -146,6 +141,7 @@ func (c *Client) Init(ctx context.Context) error {
 		// Try to rotate cookies and retry
 		if rotErr := c.RotateCookies(); rotErr == nil {
 			c.log.Debug("Cookie rotation succeeded, retrying session token fetch")
+			c.httpClient.SetCommonCookies(c.cookies.ToHTTPCookies()...)
 			err = c.refreshSessionToken(ctx)
 		} else {
 			c.log.Debug("Cookie rotation failed", zap.Error(rotErr))
@@ -223,29 +219,6 @@ func (c *Client) refreshSessionToken(ctx context.Context) error {
 		},
 	}
 
-	// Helper to merge cookies into a map to avoid duplicates
-	mergeCookies := func(baseStr string, newCks []*http.Cookie) string {
-		m := make(map[string]string)
-		for _, part := range strings.Split(baseStr, ";") {
-			p := strings.TrimSpace(part)
-			if p == "" {
-				continue
-			}
-			kv := strings.SplitN(p, "=", 2)
-			if len(kv) == 2 {
-				m[kv[0]] = kv[1]
-			}
-		}
-		for _, ck := range newCks {
-			m[ck.Name] = ck.Value
-		}
-		res := []string{}
-		for k, v := range m {
-			res = append(res, fmt.Sprintf("%s=%s", k, v))
-		}
-		return strings.Join(res, "; ")
-	}
-
 	req1, _ := http.NewRequestWithContext(ctx, "GET", "https://gemini.google.com/?hl=en", nil)
 	for k, v := range commonHeaders {
 		req1.Header.Set(k, v)
@@ -293,6 +266,15 @@ func (c *Client) refreshSessionToken(ctx context.Context) error {
 
 	// Merge cookies from the init response into cookieStr
 	cookieStr = mergeCookies(cookieStr, resp.Cookies())
+	for _, ck := range resp.Cookies() {
+		if ck.Name == "__Secure-1PSIDTS" && ck.Value != "" {
+			c.cookies.mu.Lock()
+			c.cookies.Secure1PSIDTS = ck.Value
+			c.cookies.UpdatedAt = time.Now()
+			c.cookies.mu.Unlock()
+			_ = c.SaveCachedCookies()
+		}
+	}
 
 	matches := accessTokenRegex.FindStringSubmatch(body)
 	if len(matches) < 2 {
@@ -359,6 +341,14 @@ func (c *Client) startAutoRefresh() {
 	for {
 		select {
 		case <-ticker.C:
+			c.cookies.mu.RLock()
+			recentlyUpdated := !c.cookies.UpdatedAt.IsZero() && time.Since(c.cookies.UpdatedAt) < 2*time.Minute
+			c.cookies.mu.RUnlock()
+			if recentlyUpdated {
+				c.log.Debug("Skipping scheduled cookie rotation; tokens refreshed recently")
+				continue
+			}
+
 			c.log.Debug("Starting scheduled cookie refresh")
 			rotateErr, sessionErr, healthy := refreshSessionHealth(
 				c.RotateCookies,
@@ -422,12 +412,18 @@ func (c *Client) RotateCookies() error {
 	req, _ := http.NewRequest("POST", EndpointRotateCookies, strings.NewReader(strBody))
 
 	req.Header.Set("Content-Type", "application/json")
-	// Google often blocks requests with default Go-http-client User-Agent
+	// Google blocks requests with default Go-http-client User-Agent or missing origin
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Origin", "https://accounts.google.com")
+	req.Header.Set("Referer", "https://accounts.google.com/")
+	req.Header.Set("Sec-Fetch-Site", "same-origin")
+	req.Header.Set("Sec-Fetch-Mode", "cors")
+	req.Header.Set("Sec-Fetch-Dest", "empty")
+	req.Header.Set("X-Same-Domain", "1")
 	req.Header.Set("Cookie", cookieStr)
 
 	c.log.Debug("Sending rotation request", zap.String("url", EndpointRotateCookies))
-	hClient := &http.Client{Timeout: 5 * time.Second}
+	hClient := &http.Client{Timeout: 10 * time.Second}
 	resp, err := hClient.Do(req)
 	if err != nil {
 		// Log as Info to avoid scary stacktraces in development mode for expected auth failures
@@ -444,7 +440,7 @@ func (c *Client) RotateCookies() error {
 	// Extract new PSIDTS from Set-Cookie headers
 	found := false
 	for _, cookie := range resp.Cookies() {
-		if cookie.Name == "__Secure-1PSIDTS" {
+		if cookie.Name == "__Secure-1PSIDTS" && cookie.Value != "" {
 			c.cookies.Secure1PSIDTS = cookie.Value
 			c.cookies.UpdatedAt = time.Now()
 			found = true
@@ -453,6 +449,12 @@ func (c *Client) RotateCookies() error {
 		}
 		// Sync to req/v3 client for future calls
 		c.httpClient.SetCommonCookies(cookie)
+	}
+
+	if len(resp.Cookies()) > 0 {
+		c.mu.Lock()
+		c.cookieHeader = mergeCookies(c.cookieHeader, resp.Cookies())
+		c.mu.Unlock()
 	}
 
 	if found {
@@ -618,6 +620,20 @@ func (c *Client) generateContent(ctx context.Context, prompt string, metadata []
 			)
 			lastErr = err
 			continue
+		}
+		if len(httpResp.Cookies()) > 0 {
+			c.mu.Lock()
+			c.cookieHeader = mergeCookies(c.cookieHeader, httpResp.Cookies())
+			c.mu.Unlock()
+			for _, ck := range httpResp.Cookies() {
+				if ck.Name == "__Secure-1PSIDTS" && ck.Value != "" {
+					c.cookies.mu.Lock()
+					c.cookies.Secure1PSIDTS = ck.Value
+					c.cookies.UpdatedAt = time.Now()
+					c.cookies.mu.Unlock()
+					_ = c.SaveCachedCookies()
+				}
+			}
 		}
 		if httpResp.StatusCode != http.StatusOK {
 			_ = httpResp.Body.Close()
@@ -1325,6 +1341,28 @@ func mergeCookieHeaders(headers ...string) string {
 	return strings.Join(parts, "; ")
 }
 
+func mergeCookies(baseStr string, newCks []*http.Cookie) string {
+	m := make(map[string]string)
+	for _, part := range strings.Split(baseStr, ";") {
+		p := strings.TrimSpace(part)
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		if len(kv) == 2 {
+			m[kv[0]] = kv[1]
+		}
+	}
+	for _, ck := range newCks {
+		m[ck.Name] = ck.Value
+	}
+	res := []string{}
+	for k, v := range m {
+		res = append(res, fmt.Sprintf("%s=%s", k, v))
+	}
+	return strings.Join(res, "; ")
+}
+
 // LoadCachedCookies attempts to read the saved 1PSIDTS from disk
 func (c *Client) LoadCachedCookies() (string, error) {
 	if c.cookies.Secure1PSID == "" {
@@ -1387,13 +1425,14 @@ func (c *Client) ClearCookieCache() error {
 }
 
 const (
-	EndpointGoogle        = "https://www.google.com"
-	EndpointInit          = "https://gemini.google.com/app"
-	EndpointGenerate      = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
-	EndpointRotateCookies = "https://accounts.google.com/RotateCookies"
-	EndpointUpload        = "https://content-push.googleapis.com/upload"
-	EndpointBatchExec     = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
+	EndpointGoogle    = "https://www.google.com"
+	EndpointInit      = "https://gemini.google.com/app"
+	EndpointGenerate  = "https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
+	EndpointUpload    = "https://content-push.googleapis.com/upload"
+	EndpointBatchExec = "https://gemini.google.com/_/BardChatUi/data/batchexecute"
 )
+
+var EndpointRotateCookies = "https://accounts.google.com/RotateCookies"
 
 var DefaultHeaders = map[string]string{
 	"Content-Type":  "application/x-www-form-urlencoded;charset=utf-8",
