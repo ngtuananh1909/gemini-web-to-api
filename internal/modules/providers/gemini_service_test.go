@@ -3,9 +3,12 @@ package providers
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/imroc/req/v3"
 	"go.uber.org/zap"
 )
 
@@ -133,5 +136,92 @@ func TestParseResponseHandlesBardErrorInfo(t *testing.T) {
 	expectedSubstr := "BardErrorInfo code [13 1152]"
 	if !strings.Contains(err.Error(), expectedSubstr) {
 		t.Fatalf("Expected error to contain %q, got: %v", expectedSubstr, err)
+	}
+}
+
+func TestRotateCookiesSuccess(t *testing.T) {
+	origEndpoint := EndpointRotateCookies
+	defer func() { EndpointRotateCookies = origEndpoint }()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if got := r.Header.Get("Origin"); got != "https://accounts.google.com" {
+			t.Errorf("expected Origin header, got %q", got)
+		}
+		if got := r.Header.Get("Referer"); got != "https://accounts.google.com/" {
+			t.Errorf("expected Referer header, got %q", got)
+		}
+		if got := r.Header.Get("X-Same-Domain"); got != "1" {
+			t.Errorf("expected X-Same-Domain header, got %q", got)
+		}
+		if !strings.Contains(r.Header.Get("Cookie"), "__Secure-1PSID=test-psid-token") {
+			t.Errorf("expected Cookie with 1PSID, got %q", r.Header.Get("Cookie"))
+		}
+
+		http.SetCookie(w, &http.Cookie{
+			Name:  "__Secure-1PSIDTS",
+			Value: "newly-rotated-psidts-12345",
+			Path:  "/",
+		})
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`ok`))
+	}))
+	defer server.Close()
+
+	EndpointRotateCookies = server.URL
+
+	client := &Client{
+		cookies: &CookieStore{
+			Secure1PSID: "test-psid-token",
+		},
+		httpClient: req.NewClient(),
+		log:        zap.NewNop(),
+	}
+	defer func() { _ = client.ClearCookieCache() }()
+
+	err := client.RotateCookies()
+	if err != nil {
+		t.Fatalf("RotateCookies failed: %v", err)
+	}
+
+	if client.cookies.Secure1PSIDTS != "newly-rotated-psidts-12345" {
+		t.Fatalf("expected rotated PSIDTS, got %q", client.cookies.Secure1PSIDTS)
+	}
+
+	cached, err := client.LoadCachedCookies()
+	if err != nil {
+		t.Fatalf("expected cached cookie, got error: %v", err)
+	}
+	if cached != "newly-rotated-psidts-12345" {
+		t.Fatalf("expected cached PSIDTS 'newly-rotated-psidts-12345', got %q", cached)
+	}
+}
+
+func TestInitPrioritizesCachedCookies(t *testing.T) {
+	client := &Client{
+		cookies: &CookieStore{
+			Secure1PSID:   "psid-cache-priority-test",
+			Secure1PSIDTS: "old-env-psidts",
+		},
+		httpClient: req.NewClient(),
+		log:        zap.NewNop(),
+	}
+	defer func() { _ = client.ClearCookieCache() }()
+
+	// Pre-populate cache with newer token
+	client.cookies.Secure1PSIDTS = "fresh-cached-token"
+	if err := client.SaveCachedCookies(); err != nil {
+		t.Fatalf("failed to save test cache: %v", err)
+	}
+
+	// Reset in-memory PSIDTS to emulate reading from .env
+	client.cookies.Secure1PSIDTS = "old-env-psidts"
+
+	// Check loading cached cookies
+	cached, err := client.LoadCachedCookies()
+	if err != nil || cached != "fresh-cached-token" {
+		t.Fatalf("expected cache hit with 'fresh-cached-token', got %q (err: %v)", cached, err)
 	}
 }

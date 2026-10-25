@@ -181,14 +181,13 @@ func (manager *Manager) Middleware() fiber.Handler {
 		var candidates []string
 		if authorization := c.Get("Authorization"); authorization != "" {
 			scheme, value, ok := strings.Cut(authorization, " ")
-			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(value) == "" {
-				return unauthorized(c)
+			if ok && strings.EqualFold(scheme, "Bearer") && strings.TrimSpace(value) != "" {
+				candidates = append(candidates, strings.TrimSpace(value))
 			}
-			candidates = append(candidates, strings.TrimSpace(value))
 		}
 		for _, header := range []string{"x-api-key", "x-goog-api-key"} {
 			if value := c.Get(header); value != "" {
-				candidates = append(candidates, value)
+				candidates = append(candidates, strings.TrimSpace(value))
 			}
 		}
 		if len(candidates) == 0 {
@@ -198,11 +197,11 @@ func (manager *Manager) Middleware() fiber.Handler {
 		key := manager.key
 		manager.mu.RUnlock()
 		for _, candidate := range candidates {
-			if subtle.ConstantTimeCompare([]byte(candidate), []byte(key)) != 1 {
-				return unauthorized(c)
+			if subtle.ConstantTimeCompare([]byte(candidate), []byte(key)) == 1 {
+				return c.Next()
 			}
 		}
-		return c.Next()
+		return unauthorized(c)
 	}
 }
 

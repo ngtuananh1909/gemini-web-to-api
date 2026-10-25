@@ -23,7 +23,7 @@ func TestNewRejectsInvalidGeminiAuthUser(t *testing.T) {
 	}
 }
 
-func TestNewRequiresCompleteGeminiCookiesHeader(t *testing.T) {
+func TestNewRequiresGeminiCookiesHeaderWithPSID(t *testing.T) {
 	t.Setenv("GEMINI_COOKIES", "")
 	// Legacy variables must not create a second authentication path.
 	t.Setenv("GEMINI_1PSID", "legacy-psid")
@@ -32,9 +32,49 @@ func TestNewRequiresCompleteGeminiCookiesHeader(t *testing.T) {
 		t.Fatalf("expected GEMINI_COOKIES requirement, got %v", err)
 	}
 
-	t.Setenv("GEMINI_COOKIES", "NID=rollout; __Secure-1PSID=psid")
-	if _, err := New(); err == nil || !strings.Contains(err.Error(), "__Secure-1PSIDTS") {
-		t.Fatalf("expected incomplete Cookie header error, got %v", err)
+	t.Setenv("GEMINI_COOKIES", "NID=rollout; SIDCC=some-flag")
+	if _, err := New(); err == nil || !strings.Contains(err.Error(), "__Secure-1PSID") {
+		t.Fatalf("expected missing __Secure-1PSID error, got %v", err)
+	}
+}
+
+func TestNewAcceptsPSIDOnlyOrRawToken(t *testing.T) {
+	t.Setenv("GEMINI_COOKIES", "NID=rollout; __Secure-1PSID=psid-only")
+	cfg, err := New()
+	if err != nil {
+		t.Fatalf("expected success with PSID only, got %v", err)
+	}
+	if cfg.Gemini.Secure1PSID != "psid-only" || cfg.Gemini.Secure1PSIDTS != "" {
+		t.Fatalf("unexpected config: %#v", cfg.Gemini)
+	}
+
+	// Test raw token without prefix
+	t.Setenv("GEMINI_COOKIES", "raw-psid-token-value")
+	cfgRaw, err := New()
+	if err != nil {
+		t.Fatalf("expected success with raw PSID token, got %v", err)
+	}
+	if cfgRaw.Gemini.Secure1PSID != "raw-psid-token-value" || cfgRaw.Gemini.Secure1PSIDTS != "" {
+		t.Fatalf("unexpected raw config: %#v", cfgRaw.Gemini)
+	}
+}
+
+func TestNewAcceptsCookieEditorJSON(t *testing.T) {
+	jsonPayload := `[
+		{"name": "NID", "value": "nid-val"},
+		{"name": "__Secure-1PSID", "value": "json-psid-val"},
+		{"name": "__Secure-1PSIDTS", "value": "json-psidts-val"}
+	]`
+	t.Setenv("GEMINI_COOKIES", jsonPayload)
+	cfg, err := New()
+	if err != nil {
+		t.Fatalf("expected success with Cookie-Editor JSON format, got %v", err)
+	}
+	if cfg.Gemini.Secure1PSID != "json-psid-val" || cfg.Gemini.Secure1PSIDTS != "json-psidts-val" {
+		t.Fatalf("unexpected extracted cookies: %#v", cfg.Gemini)
+	}
+	if !strings.Contains(cfg.Gemini.Cookies, "NID=nid-val") {
+		t.Fatalf("expected converted cookie string, got %q", cfg.Gemini.Cookies)
 	}
 }
 

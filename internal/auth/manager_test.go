@@ -132,7 +132,7 @@ func TestRotateInvalidatesOldKeyAndPersistsNewKey(t *testing.T) {
 	}
 }
 
-func TestMiddlewareAcceptsOneValidHeaderAndRejectsMissingInvalidOrConflictingKeys(t *testing.T) {
+func TestMiddlewareAcceptsOneValidHeaderAndRejectsMissingOrInvalidKeys(t *testing.T) {
 	manager, err := NewManager(&configs.Config{Auth: configs.AuthConfig{Enabled: true, DataDir: t.TempDir()}})
 	if err != nil {
 		t.Fatal(err)
@@ -151,7 +151,8 @@ func TestMiddlewareAcceptsOneValidHeaderAndRejectsMissingInvalidOrConflictingKey
 		{name: "bearer", headers: map[string]string{"Authorization": "Bearer " + manager.Key()}, want: http.StatusNoContent},
 		{name: "x-api-key", headers: map[string]string{"X-API-Key": manager.Key()}, want: http.StatusNoContent},
 		{name: "goog-api-key", headers: map[string]string{"X-Goog-Api-Key": manager.Key()}, want: http.StatusNoContent},
-		{name: "conflicting", headers: map[string]string{"X-API-Key": manager.Key(), "X-Goog-Api-Key": "wrong"}, want: http.StatusUnauthorized},
+		{name: "conflicting", headers: map[string]string{"X-API-Key": manager.Key(), "X-Goog-Api-Key": "wrong"}, want: http.StatusNoContent},
+		{name: "malformed bearer with valid x-api-key", headers: map[string]string{"Authorization": "Bearer", "X-API-Key": manager.Key()}, want: http.StatusNoContent},
 		{name: "url key ignored", headers: nil, want: http.StatusUnauthorized},
 	}
 	for _, tc := range cases {

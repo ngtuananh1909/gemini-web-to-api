@@ -1,6 +1,7 @@
 package configs
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -103,8 +104,25 @@ func New() (*Config, error) {
 
 	// Gemini
 	cfg.Gemini.Cookies = os.Getenv("GEMINI_COOKIES")
+	rawCookies := strings.TrimSpace(cfg.Gemini.Cookies)
+	if strings.HasPrefix(rawCookies, "[") {
+		var list []struct {
+			Name  string `json:"name"`
+			Value string `json:"value"`
+		}
+		if err := json.Unmarshal([]byte(rawCookies), &list); err == nil {
+			parts := make([]string, 0, len(list))
+			for _, item := range list {
+				parts = append(parts, item.Name+"="+item.Value)
+			}
+			cfg.Gemini.Cookies = strings.Join(parts, "; ")
+		}
+	}
 	cfg.Gemini.AuthUser = strings.TrimSpace(os.Getenv("GEMINI_AUTH_USER"))
 	cfg.Gemini.Secure1PSID = cookieValue(cfg.Gemini.Cookies, "__Secure-1PSID")
+	if cfg.Gemini.Secure1PSID == "" && strings.TrimSpace(cfg.Gemini.Cookies) != "" && !strings.Contains(cfg.Gemini.Cookies, "=") {
+		cfg.Gemini.Secure1PSID = strings.TrimSpace(cfg.Gemini.Cookies)
+	}
 	cfg.Gemini.Secure1PSIDTS = cookieValue(cfg.Gemini.Cookies, "__Secure-1PSIDTS")
 	cfg.Gemini.RefreshInterval = getEnvInt("GEMINI_REFRESH_INTERVAL", defaultGeminiRefreshInterval)
 	cfg.Gemini.MaxRetries = getEnvInt("GEMINI_MAX_RETRIES", defaultGeminiMaxRetries)
@@ -142,8 +160,8 @@ func (c *Config) Validate() error {
 
 	if strings.TrimSpace(c.Gemini.Cookies) == "" {
 		missingVars = append(missingVars, "GEMINI_COOKIES")
-	} else if c.Gemini.Secure1PSID == "" || c.Gemini.Secure1PSIDTS == "" {
-		return fmt.Errorf("GEMINI_COOKIES must contain __Secure-1PSID and __Secure-1PSIDTS")
+	} else if c.Gemini.Secure1PSID == "" {
+		return fmt.Errorf("GEMINI_COOKIES must contain __Secure-1PSID")
 	}
 
 	// Check Server port is valid
